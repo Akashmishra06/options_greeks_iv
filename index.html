@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Premium IV Chart (Call vs Put) + Data Table</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #e0e6f0;
+      padding: 2rem;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      user-select: none;
+    }
+
+    h2 {
+      font-weight: 600;
+      font-size: 2.5rem;
+      margin-bottom: 1.5rem;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 960px;
+      width: 95vw;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+      padding: 2rem 2.5rem 3rem;
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      margin-bottom: 3rem;
+    }
+
+    input[type="file"] {
+      display: block;
+      margin: 1rem auto 2.5rem;
+      background: #1a73e8;
+      color: white;
+      font-weight: 600;
+      padding: 0.6rem 1.6rem;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 15px rgba(26, 115, 232, 0.6);
+      cursor: pointer;
+      transition: background 0.3s ease;
+      font-size: 1rem;
+      user-select: none;
+    }
+    input[type="file"]:hover {
+      background: #155ab6;
+      box-shadow: 0 6px 20px rgba(21, 90, 182, 0.8);
+    }
+
+    canvas {
+      display: block;
+      max-width: 100%;
+      width: 100%;
+      height: 55vh;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0, 123, 255, 0.3);
+      background: linear-gradient(135deg, #0d1523 10%, #162a48 90%);
+      padding: 1.2rem 1.5rem 1.5rem;
+      margin: 0 auto 3rem;
+    }
+
+    /* Table styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      font-size: 0.9rem;
+    }
+
+    thead {
+      background: linear-gradient(90deg, #007bff, #28a745);
+    }
+
+    thead th {
+      color: #f0f8ff;
+      padding: 0.8rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      user-select: none;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.08);
+      cursor: default;
+    }
+
+    tbody td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: #c0cbdc;
+      white-space: nowrap;
+    }
+
+    .table-container {
+      max-width: 960px;
+      width: 95vw;
+      overflow-x: auto;
+      margin-bottom: 3rem;
+    }
+
+  </style>
+</head>
+<body>
+  <h2>📈 Premium IV Chart (Call vs Put) + Data Table</h2>
+  <div class="container">
+    <input type="file" id="fileInput" accept=".csv" />
+    <canvas id="ivChart"></canvas>
+  </div>
+
+  <div class="table-container" id="tableContainer"></div>
+
+
+
+  <script>
+  document.getElementById('fileInput').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const rawText = e.target.result;
+      const lines = rawText.trim().split('\n');
+      if (lines.length < 2) return;
+
+      const headers = lines[0].split(',');
+      const rows = lines.slice(1).map(line => line.split(','));
+
+      const labels = [];
+      const ivCall = [];
+      const ivPut = [];
+      const callChange = [];
+      const putChange = [];
+      const priceChange = [];
+
+      rows.forEach(parts => {
+        if (parts.length >= 12) {
+          labels.push(parts[1].slice(11)); // Extract time from datetime
+          ivCall.push(parseFloat(parts[7]));
+          ivPut.push(parseFloat(parts[5]));
+          callChange.push(parts[9] ? parseFloat(parts[9]) : null);
+          putChange.push(parts[10] ? parseFloat(parts[10]) : null);
+          priceChange.push(parts[11] ? parseFloat(parts[11]) : null);
+        }
+      });
+
+      const ctx = document.getElementById('ivChart').getContext('2d');
+      const canvasHeight = ctx.canvas.height;
+
+      const gradientCall = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+      gradientCall.addColorStop(0, 'rgba(0, 123, 255, 0.85)');
+      gradientCall.addColorStop(0.7, 'rgba(0, 123, 255, 0.3)');
+      gradientCall.addColorStop(1, 'rgba(0, 123, 255, 0)');
+
+      const gradientPut = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+      gradientPut.addColorStop(0, 'rgba(40, 167, 69, 0.85)');
+      gradientPut.addColorStop(0.7, 'rgba(40, 167, 69, 0.3)');
+      gradientPut.addColorStop(1, 'rgba(40, 167, 69, 0)');
+
+      if (window.ivChartInstance) {
+        window.ivChartInstance.destroy();
+      }
+
+      window.ivChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'IV Call (%)',
+              data: ivCall,
+              borderColor: '#007bff',
+              backgroundColor: gradientCall,
+              fill: true,
+              tension: 0.3,
+              borderWidth: 1.5,
+              pointRadius: 2.5,
+              pointHoverRadius: 5,
+              pointBackgroundColor: '#0d6efd'
+            },
+            {
+              label: 'IV Put (%)',
+              data: ivPut,
+              borderColor: '#28a745',
+              backgroundColor: gradientPut,
+              fill: true,
+              tension: 0.3,
+              borderWidth: 1.5,
+              pointRadius: 2.5,
+              pointHoverRadius: 5,
+              pointBackgroundColor: '#198754'
+            },
+            {
+              label: 'Call IV Change',
+              data: callChange,
+              borderColor: '#ffc107',
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.2,
+              borderWidth: 1.8,
+              pointRadius: 2,
+              pointHoverRadius: 4
+            },
+            {
+              label: 'Put IV Change',
+              data: putChange,
+              borderColor: '#dc3545',
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.2,
+              borderWidth: 1.8,
+              pointRadius: 2,
+              pointHoverRadius: 4
+            },
+            {
+              label: 'sumOfPriceChange',
+              data: priceChange,
+              borderColor: '#a64aff',
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.25,
+              borderWidth: 1.8,
+              pointRadius: 2,
+              pointHoverRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          animation: {
+            duration: 1200,
+            easing: 'easeOutQuart'
+          },
+          interaction: {
+            mode: 'nearest',
+            intersect: false,
+            axis: 'x'
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#cfd8dc',
+                font: {
+                  size: 15,
+                  weight: '600'
+                }
+              }
+            },
+            tooltip: {
+              enabled: true,
+              backgroundColor: '#222',
+              titleColor: '#fff',
+              bodyColor: '#ddd',
+              borderColor: '#444',
+              borderWidth: 1,
+              cornerRadius: 6,
+              displayColors: true,
+              mode: 'nearest',
+              intersect: false,
+              padding: 10,
+              bodyFont: { size: 13 }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: '#a0b0c0',
+                font: { size: 12, weight: '500' },
+                maxRotation: 45,
+                minRotation: 30,
+                autoSkipPadding: 8,
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            },
+            y: {
+              ticks: {
+                color: '#a0b0c0',
+                font: { size: 13, weight: '500' },
+                beginAtZero: false
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            }
+          }
+        }
+      });
+
+      // Render Table
+      const tableContainer = document.getElementById('tableContainer');
+      tableContainer.innerHTML = '';
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const tbody = document.createElement('tbody');
+
+      const headerRow = document.createElement('tr');
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header.trim();
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell.trim();
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      tableContainer.appendChild(table);
+    };
+
+    reader.readAsText(file);
+  });
+</script>
+
+
+
+</body>
+</html>

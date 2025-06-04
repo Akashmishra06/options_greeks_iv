@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IV Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: #111; color: white; }
+    canvas { background: white; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h2>IV Call vs Put Chart</h2>
+  <input type="file" id="fileInput" accept=".csv">
+  <canvas id="ivChart" width="800" height="400"></canvas>
+
+  <script>
+    document.getElementById('fileInput').addEventListener('change', function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const lines = e.target.result.split('\n').slice(1);
+        const labels = [];
+        const ivCall = [];
+        const ivPut = [];
+
+        lines.forEach(line => {
+          const parts = line.split(',');
+          if (parts.length >= 8) {
+            labels.push(parts[0].slice(11)); // time only
+            ivCall.push(parseFloat(parts[7]));
+            ivPut.push(parseFloat(parts[5]));
+          }
+        });
+
+        const ctx = document.getElementById('ivChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'IV Call (%)',
+                data: ivCall,
+                borderColor: 'blue',
+                fill: false
+              },
+              {
+                label: 'IV Put (%)',
+                data: ivPut,
+                borderColor: 'green',
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: false
+              }
+            }
+          }
+        });
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
